@@ -35,11 +35,4 @@ socre = np.array([[3.2, 5.1, -1.7],
 y = np.array([0, 1, 2])
 
 # print(svm(socre, y, 1.0))
-# print(relu_svm(socre, y, 1.0))
-
-X = np.array([[1, 2, 3],
-              [4, 5, 6]])
-y = np.array([[0],
-              [2]])  # 第一个样本属于第0类，第二个样本属于第2类
-
-print(dw_svm(X, y))
+print(relu_svm(socre, y, 1.0))
