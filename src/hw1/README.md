@@ -1,4 +1,6 @@
-# chapter 2: Classifiers
+# Homework 1: C2
+
+## chapter 2: Classifiers
 
 - knn
     - What is Classifier?
@@ -12,7 +14,7 @@
         - Occlusion. 
         - Background Clutter. 
         - Interclass Variation. 
-- linear
+- loss functions
     - Linear Classifier.
     - Multi-Class Loss Functions.
         - SVM(Score Vectors Margin) Loss.

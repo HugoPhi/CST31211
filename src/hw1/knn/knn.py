@@ -3,7 +3,7 @@ import torch
 import time
 import numpy as np
 
-from plugins.clfs import Clfs
+from plugins.lrkit.clfs import Clfs
 
 
 class _knn_clf_numpy(Clfs):

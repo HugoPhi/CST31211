@@ -1,4 +1,4 @@
-from plugins.executer import KFlodCrossExecuter
+from plugins.lrkit.executer import KFlodCrossExecuter
 
 from knn import KNNClf
 from data_process import X_train, X_test, y_test, y_train

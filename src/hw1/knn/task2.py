@@ -1,4 +1,4 @@
-from plugins.executer import Executer
+from plugins.lrkit.executer import Executer
 
 from knn import KNNClf, SklearnKNNClf
 from data_process import X_train, X_test, y_test, y_train

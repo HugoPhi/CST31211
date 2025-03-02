@@ -1,4 +1,4 @@
-from plugins.executer import Excuter
+from plugins.lrkit.executer import Executer
 
 from knn import KNNClf, SklearnKNNClf
 from data_process import X_train, X_test, y_test, y_train
@@ -19,7 +19,7 @@ clf_dict[f'knn_{k}_pf_torch-gpu'] = KNNClf(k=k, d='manhattan', batch_size=(n_tes
 clf_dict['knn_sklearn'] = SklearnKNNClf(n_neighbors=k, metric='manhattan', algorithm='brute')
 
 
-exc = Excuter(
+exc = Executer(
     X_train, y_train, X_test, y_test,
     metric_list=['accuracy', 'avg_recall'],
     clf_dict=clf_dict,
