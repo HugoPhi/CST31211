@@ -1,4 +1,4 @@
-# Homework 1: C2, C3
+# Homework 1: C2
 
 ## chapter 2: Classifiers
 
@@ -14,7 +14,7 @@
         - Occlusion. 
         - Background Clutter. 
         - Interclass Variation. 
-- linear
+- loss functions
     - Linear Classifier.
     - Multi-Class Loss Functions.
         - SVM(Score Vectors Margin) Loss.
@@ -23,7 +23,3 @@
         - L1.
         - L2.
         - Elastic net(L1 + L2).
-
-## chapter 3: Optimazation
-
-- Gradient Descent

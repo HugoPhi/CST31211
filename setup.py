@@ -1,8 +1,8 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
-    name="plugins",
+    name="cst31211",
     version="0.1",
-    packages=['plugins'],
+    packages=find_packages(),
     install_requires=['numpy', 'toml'],
 )
