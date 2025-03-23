@@ -3,7 +3,7 @@ from plugins.lrkit.executer import Executer
 from knn import KNNClf, SklearnKNNClf
 from data_process import X_train, X_test, y_test, y_train
 
-n_train = 5000
+n_train = 50000
 n_test = 1000
 X_train = X_train[:n_train]
 y_train = y_train[:n_train]
@@ -12,7 +12,7 @@ y_test = y_test[:n_test]
 
 
 clf_dict = {}
-k = 5
+k = 10
 
 clf_dict[f'knn_{k}_pf_torch-cpu'] = KNNClf(k=k, d='manhattan', batch_size=(n_test, 1), backend='torch_cpu')
 clf_dict[f'knn_{k}_pf_torch-gpu'] = KNNClf(k=k, d='manhattan', batch_size=(n_test, 1), backend='torch')
@@ -26,4 +26,4 @@ exc = Executer(
     log=False,
 )
 
-exc.run_all()
+exc.run_all(sort_by='testing time')

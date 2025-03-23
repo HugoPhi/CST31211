@@ -3,7 +3,7 @@ import torch
 import time
 import numpy as np
 
-from plugins.lrkit.clfs import Clfs
+from plugins.lrkit.clfs import Clfs, timing
 
 
 class _knn_clf_numpy(Clfs):
@@ -131,9 +131,8 @@ class _knn_clf_numpy(Clfs):
         dists = 1 - similarity
         return dists
 
+    @timing
     def fit(self, X_train, y_train):
-        start = time.time()
-
         self.x = X_train
         self.y = y_train.reshape(-1)
         classes, self.static = np.unique(self.y, return_counts=True)  # 统计每种类别
@@ -143,14 +142,14 @@ class _knn_clf_numpy(Clfs):
 
         self.static = self.static / self.static.sum()  # 每种类别可能的概率，用于抵抗数据不均衡
 
-        self.training_time = time.time() - start
-
+    @timing
     def predict(self, x_test):
         proba = self.predict_proba(x_test)
         diff = proba - self.static
 
         return np.argmax(diff, axis=1)  # 可能性最大
 
+    @timing
     def predict_proba(self, x_test):
 
         def __calculate_proba(batch_x_test, n_k_neighbors):
@@ -168,8 +167,6 @@ class _knn_clf_numpy(Clfs):
             proba_batch = class_counts / k  # 计算概率：将每个样本的类别计数除以最近邻的数量(k)
 
             return proba_batch
-
-        start = time.time()
 
         proba = np.zeros((x_test.shape[0], self.static.shape[0]))  # 每种类别的可能性，（N_test, C）
 
@@ -189,19 +186,11 @@ class _knn_clf_numpy(Clfs):
 
             proba[i:i + batch_x_test.shape[0]] = __calculate_proba(batch_x_test, n_k_neighbors)  # 把计算得到的proba添加到第一个维度。
 
-        self.testing_time = time.time() - start
-
         self.n_k_neighbors = np.concatenate(self.n_k_neighbors, axis=0)  # 得到x_test的每个样本的k个最近邻居 -> (N_test, k)
         return proba
 
     def get_k_neighbors(self):
         return self.n_k_neighbors
-
-    def get_testing_time(self):
-        return self.testing_time
-
-    def get_training_time(self):
-        return self.training_time
 
     def get_pre_proba(self):
         return self.static
@@ -273,8 +262,8 @@ class _knn_clf_torch(Clfs):
         dists = 1 - similarity
         return dists
 
+    @timing
     def fit(self, X_train, y_train):
-        start = time.time()
         self.x = self.__to_tensor(X_train)
         self.y = torch.tensor(y_train.reshape(-1), dtype=torch.long).to(self.device)
         classes, self.static = torch.unique(self.y, return_counts=True)
@@ -283,13 +272,14 @@ class _knn_clf_torch(Clfs):
             raise ValueError('[x] Make sure y is start form 0 !')
 
         self.static = self.static / self.static.sum()
-        self.training_time = time.time() - start
 
+    @timing
     def predict(self, x_test):
         proba = self.predict_proba(x_test)
         diff = proba - self.static.cpu().numpy()
         return np.argmax(diff, axis=1)
 
+    @timing
     def predict_proba(self, x_test):
 
         def __calculate_proba(batch_x_test, n_k_neighbors):
@@ -308,7 +298,6 @@ class _knn_clf_torch(Clfs):
 
             return proba_batch  # 这里不用转成numpy因为后面还要加入到大的proba里面
 
-        start = time.time()
         proba = torch.zeros((x_test.shape[0], self.static.size(0)), device=self.device)
 
         self.n_k_neighbors = []
@@ -325,19 +314,11 @@ class _knn_clf_torch(Clfs):
             self.n_k_neighbors.append(n_k_neighbors.cpu().numpy())
             proba[i:i + batch_x_test.size(0), :] = __calculate_proba(batch_x_test, n_k_neighbors)
 
-        self.testing_time = time.time() - start
-
         self.n_k_neighbors = np.concatenate(self.n_k_neighbors, axis=0)
         return proba.cpu().numpy()
 
     def get_k_neighbors(self):
         return self.n_k_neighbors
-
-    def get_testing_time(self):
-        return self.testing_time
-
-    def get_training_time(self):
-        return self.training_time
 
     def get_pre_proba(self):
         return self.static.cpu().numpy()
@@ -380,23 +361,20 @@ class KNNClf(Clfs):
         else:
             raise ValueError("[x] Backend should be either 'numpy' or 'torch'")
 
+    @timing
     def fit(self, X_train, y_train):
         return self.knn.fit(X_train, y_train)
 
+    @timing
     def predict(self, x_test):
         return self.knn.predict(x_test)
 
+    @timing
     def predict_proba(self, x_test):
         return self.knn.predict_proba(x_test)
 
     def get_k_neighbors(self):
         return self.knn.get_k_neighbors()
-
-    def get_testing_time(self):
-        return self.knn.get_testing_time()
-
-    def get_training_time(self):
-        return self.knn.get_training_time()
 
     def get_pre_proba(self):
         return self.knn.get_pre_proba()
@@ -407,11 +385,10 @@ class SklearnKNNClf(Clfs):  # by Qwen.
         super(SklearnKNNClf, self).__init__()
         # 初始化KNN分类器，将传入的参数传递给它，并设置距离度量为曼哈顿距离
         self.knn = KNeighborsClassifier(n_neighbors=n_neighbors, weights=weights, algorithm=algorithm, metric=metric)
-        self.train_time = None
-        self.test_time = None
 
         print('[*] use sklearn stdlib version.')
 
+    @timing
     def fit(self, X_train, y_train):
         # 记录训练开始时间
         start_time = time.time()
@@ -420,6 +397,7 @@ class SklearnKNNClf(Clfs):  # by Qwen.
         # 记录训练结束时间
         self.train_time = time.time() - start_time
 
+    @timing
     def predict(self, X_test):
         # 记录预测开始时间
         start_time = time.time()
@@ -429,14 +407,7 @@ class SklearnKNNClf(Clfs):  # by Qwen.
         self.test_time = time.time() - start_time
         return predictions
 
+    @timing
     def predict_proba(self, X_test):
         # 返回每个测试样本属于各个类别的概率
         return self.knn.predict_proba(X_test)
-
-    def get_training_time(self):
-        # 返回训练所花费的时间
-        return self.train_time
-
-    def get_testing_time(self):
-        # 返回测试（预测）所花费的时间
-        return self.test_time
