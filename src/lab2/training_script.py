@@ -128,7 +128,7 @@ def train_model(
         scheduler.step()
 
         # 保存当前 epoch 的模型权重
-        epoch_chkp_path = os.path.join(chkp_dir, f'model_epoch_{epoch + 1}.pth')
+        epoch_chkp_path = os.path.join(chkp_dir, 'model_epoch_latest.pth')
         torch.save({
             'epoch': epoch + 1,
             'model_state_dict': model.state_dict(),

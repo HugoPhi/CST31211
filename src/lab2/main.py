@@ -4,7 +4,8 @@ import torch.nn as nn
 import torch.optim as optim
 
 from data_process import get_cifar10_data_loaders
-from models import get_resnet18
+# from models import get_resnet18
+from models import SimpleCNN
 from training_script import train_model
 
 
@@ -36,7 +37,8 @@ def main():
         train_loader, test_loader = loaders[iag][ibs]
 
         '''model replacement'''
-        model = get_resnet18()
+        # model = get_resnet18()
+        model = SimpleCNN()
         model = model.to(device)
 
         criterion = nn.CrossEntropyLoss()
