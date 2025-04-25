@@ -57,7 +57,7 @@ class SelfAttention(nn.Module):
 
         -> res: (B, [N], Lq, D), atten: (B, [N], Lk, Lk)
         '''
-        embedding_size = q.size(dim=0)
+        embedding_size = q.size(dim=-1)
         d = torch.sqrt(torch.tensor(embedding_size, dtype=torch.float16))
 
         attention = torch.matmul(q, k.transpose(-1, -2) / d)  # (B, [N], Lq, D) @ (B, [N], D, Lk) / (1,) -> (B, [N], Lq, Lk)
@@ -120,10 +120,17 @@ class FFN(nn.Module):
         self.linear1 = nn.Linear(embedding_size, hidden_size)
         self.linear2 = nn.Linear(hidden_size, embedding_size)
         self.dropout = nn.Dropout(p=p)
+        self.relu = nn.ReLU()
 
     def forward(self, x):
+        '''
+        x: (B, L, D)
+
+        -> (B, L, D)
+        '''
+
         res = self.linear1(x)
-        res = nn.ReLU(res)
+        res = self.relu(res)
         res = self.dropout(res)
         res = self.linear2(res)
         return res
@@ -138,6 +145,12 @@ class AddNorm(nn.Module):
         self.dropout = nn.Dropout(p=p)
 
     def forward(self, x, fx):
+        '''
+        x: (B, L, D)
+
+        -> (B, L, D)
+        '''
+
         fx = self.dropout(fx)
         return self.LN(x + fx)
 
@@ -206,12 +219,19 @@ class EncoderBlock(nn.Module):
             raise ValueError(f'make sure embedding_size % head_size == 0, but get: {embedding_size} and {head_size}.')
 
         self.encoder_self_attention = MultiHeadAttention(embedding_size, new_embedding_size, head_size, p)
-        self.ffn = FFN(ffn_size, p)
+        self.ffn = FFN(ffn_size, embedding_size, p)
 
         self.AN1 = AddNorm(embedding_size, p)
         self.AN2 = AddNorm(embedding_size, p)
 
     def forward(self, encoder_input, encoder_self_mask):
+        '''
+        encoder_input: (B, L) ~int ~raw_sentence
+        encoder_self_mask: (B, L, L) ~bool
+
+        -> (B, L, D) ~float
+        '''
+
         # fx branch
         x = encoder_input
 
@@ -233,18 +253,25 @@ class Encoder(nn.Module):
         self.embed = nn.Embedding(src_vocab_size, embedding_size)
         self.pos_embed = PositionalEncoding(embedding_size, p)
 
-        self.blocks = [
+        self.blocks = nn.ModuleList([
             EncoderBlock(
                 embedding_size=embedding_size,
                 head_size=head_size,
                 ffn_size=ffn_size,
                 p=p
             ) for _ in range(num_blocks)
-        ]
+        ])
 
         self.scaling = torch.sqrt(torch.tensor(embedding_size))
 
     def forward(self, encoder_input, src_who_is_pad):
+        '''
+        encoder_input: (B, L) ~int ~raw_sentence
+        src_who_is_pad: (,) ~int
+
+        -> (B, L, D) ~float
+        '''
+
         embeded_encoder_input = self.embed(encoder_input)
         embeded_encoder_input = self.pos_embed(embeded_encoder_input)
 
@@ -282,13 +309,22 @@ class DecoderBlock(nn.Module):
         self.AN3 = AddNorm(embedding_size, p)
 
     def forward(self, decoder_input, encoder_output, decoder_self_mask, decoder_encoder_mask):
+        '''
+        decoder_input: (B, L) ~int ~raw_sentence
+        encoder_output: (B, L, D) ~float
+        decoder_self_mask: (B, L, L) ~bool
+        decoder_encoder_mask: (B, L, L) ~bool
+
+        -> (B, L, D) ~float
+        '''
+
         x = decoder_input
 
         fx, _ = self.decoder_self_attention(q=x, k=x, v=x, mask=decoder_self_mask)
         out1 = self.AN1(x, fx)
 
         x = out1
-        fx, _ = self.decoder_encoder_attention(q=x, k=encoder_output, v=encoder_output, mask=decoder_self_mask)
+        fx, _ = self.decoder_encoder_attention(q=x, k=encoder_output, v=encoder_output, mask=decoder_encoder_mask)
         out2 = self.AN2(x, fx)
 
         x = out2
@@ -306,25 +342,34 @@ class Decoder(nn.Module):
         self.embed = nn.Embedding(trg_vocab_size, embedding_size)
         self.pos_embed = PositionalEncoding(embedding_size, p)
 
-        self.blocks = [
+        self.blocks = nn.ModuleList([
             DecoderBlock(
                 embedding_size=embedding_size,
                 head_size=head_size,
                 ffn_size=ffn_size,
                 p=p
             ) for _ in range(num_blocks)
-        ]
+        ])
 
         self.scaling = torch.sqrt(torch.tensor(embedding_size))
         self.linear_out = nn.Linear(embedding_size, trg_vocab_size)
 
     def forward(self, decoder_input, encoder_input, encoder_output, src_who_is_pad, trg_who_is_pad):
+        '''
+        decoder_input: (B, L) ~int ~raw_sentence
+        encoder_input: (B, L) ~int ~raw_sentence
+        encoder_output: (B, L, D) ~float
+        src_who_is_pad, trg_who_is_pad: (,) ~int
+
+        -> (B, L, trg_vocab_size) ~float
+        '''
+
         embeded_decoder_input = self.embed(decoder_input)
         embeded_decoder_input = self.pos_embed(embeded_decoder_input)
 
         decoder_self_padding_mask = Mask().get_padding_mask(decoder_input, decoder_input, trg_who_is_pad)
         decoder_self_causal_mask = Mask().get_causal_mask(decoder_input, decoder_input)
-        decoder_self_mask = decoder_self_padding_mask and decoder_self_causal_mask
+        decoder_self_mask = decoder_self_padding_mask | decoder_self_causal_mask  # can not use 'or' here
 
         decoder_encoder_padding_mask = Mask().get_padding_mask(decoder_input, encoder_input, src_who_is_pad)
         decoder_encoder_mask = decoder_encoder_padding_mask
@@ -351,6 +396,11 @@ class Transformer(nn.Module):
         self.decoder = decoder
 
     def forward(self, encoder_input, decoder_input, src_who_is_pad, trg_who_is_pad):
+        '''
+        encoder_input: (B, L) ~int ~raw_sentence
+        decoder_input: (B, L) ~int ~raw_sentence
+        src_who_is_pad, trg_who_is_pad: (,) ~int
+        '''
         encoder_output = self.encoder(encoder_input, src_who_is_pad)
 
         decoder_output = self.decoder(decoder_input, encoder_input, encoder_output, src_who_is_pad, trg_who_is_pad)
@@ -362,147 +412,399 @@ class Transformer(nn.Module):
 
 # 测试代码
 if __name__ == '__main__':
-    def test_positional_encoding():
+    def test_positional_encoding_shapes():
+        d_model = 64
+        max_len = 100
+        batch_size = 16
+        seq_len = 50
+        pe = PositionalEncoding(d_model, max_len=max_len)
+        x = torch.randn(batch_size, seq_len, d_model)
+        output = pe(x)
+        assert output.shape == (batch_size, seq_len, d_model), "PositionalEncoding shape mismatch"
 
-        # 定义模型
-        class TestModel(nn.Module):
-            def __init__(self, vocab_size, d_model, dropout_p=0.1, max_len=100):
-                super(TestModel, self).__init__()
-                self.embedding = nn.Embedding(vocab_size, d_model)  # 随机初始化词嵌入
-                self.positional_encoding = PositionalEncoding(d_model, dropout_p, max_len)
+    def test_self_attention_shapes():
+        batch_size = 4
+        seq_len = 10
+        d_model = 32
+        sa = SelfAttention()
+        q = torch.randn(batch_size, seq_len, d_model)
+        k = v = torch.randn(batch_size, seq_len, d_model)
+        output, attn = sa(q, k, v)
+        assert output.shape == q.shape, "SelfAttention output shape mismatch"
+        assert attn.shape == (batch_size, seq_len, seq_len), "SelfAttention attention shape mismatch"
 
-            def forward(self, src):
-                """
-                :param src: 输入序列，形状为 (batch_size, seq_len)
-                :return: 添加了位置编码的嵌入表示
-                """
-                # 通过 Embedding 层
-                embedded = self.embedding(src)  # (batch_size, seq_len, d_model)
-                print("\nEmbedding 输出:")
-                print(embedded)
-                print("形状:", embedded.shape)
+    def test_multi_head_attention_shapes():
+        d_model = 64
+        n_head = 4
+        new_d = d_model // n_head
+        mha = MultiHeadAttention(d_model, new_d, n_head)
+        batch_size = 8
+        seq_len = 15
+        x = torch.randn(batch_size, seq_len, d_model)
+        mask = torch.zeros(batch_size, seq_len, seq_len, dtype=torch.bool)
+        output, attn = mha(x, x, x, mask)
+        assert output.shape == x.shape, "MHA output shape mismatch"
+        assert attn.shape == (batch_size, n_head, seq_len, seq_len), "MHA attention shape mismatch"
 
-                # 添加位置编码
-                output = self.positional_encoding(embedded)  # (batch_size, seq_len, d_model)
-                return output
+    def test_encoder_block_shapes():
+        d_model = 128
+        head_size = 8
+        ffn_size = 256
+        batch_size = 16
+        seq_len = 20
+        eb = EncoderBlock(d_model, head_size, ffn_size)
+        x = torch.randn(batch_size, seq_len, d_model)
+        mask = torch.zeros(batch_size, seq_len, seq_len, dtype=torch.bool)
+        output = eb(x, mask)
+        assert output.shape == x.shape, "EncoderBlock output shape mismatch"
 
-        # 假设词汇表大小和嵌入维度
-        vocab_size = 10000  # 假设词汇表大小为 10000
-        d_model = 4         # 嵌入维度
-        batch_size = 4      # 批次大小
-        seq_len = 10        # 序列长度
+    def test_encoder_decoder_data_flow():
+        # 配置参数
+        batch_size = 32
+        src_seq_len = 50
+        trg_seq_len = 50
+        d_model = 512
+        n_head = 8
+        ffn_size = 2048
+        num_blocks = 3
+        src_vocab_size = 10000
+        trg_vocab_size = 15000
 
-        # 创建模型
-        model = TestModel(vocab_size=vocab_size, d_model=d_model)
-
-        # 创建模拟数据
-        src = torch.randint(0, vocab_size, (batch_size, seq_len))  # 随机生成输入序列
-        print("原始输入序列:")
-        print(src)
-
-        # 前向传播
-        output = model(src)
-        print("\n最终输出形状:")
-        print(output.shape)  # 输出形状应为 (batch_size, seq_len, d_model)
-
-        # 打印部分输出值
-        print("\n最终输出的部分值:")
-        print(output[0, :, :10])  # 打印第一个样本的前 10 维特征
-
-    def test_attention():
-        # 参数设置
-        batch_size = 2
-        seq_len_q = 3
-        seq_len_k = 4
-        seq_len_v = 4
-        embedding_size = 5
-        dropout_p = 0.
-
-        # 随机生成输入张量
-        q = torch.randn(batch_size, seq_len_q, embedding_size)  # 查询张量
-        k = torch.randn(batch_size, seq_len_k, embedding_size)  # 键张量
-        v = torch.randn(batch_size, seq_len_v, embedding_size)  # 值张量
-
-        # 创建掩码（可选）
-        mask = torch.zeros(batch_size, seq_len_q, seq_len_k, dtype=torch.bool)
-        mask[:, :, 2:] = True  # 掩码掉部分位置
-
-        # 初始化自注意力机制
-        self_attention = SelfAttention(p=dropout_p)
-
-        # 前向传播
-        output, attention_weights = self_attention(q, k, v, mask=mask)
-
-        # 打印结果
-        print("查询张量 q:")
-        print(q)
-        print("\n键张量 k:")
-        print(k)
-        print("\n值张量 v:")
-        print(v)
-        print("\n掩码 mask:")
-        print(mask)
-        print("\n输出张量 output:")
-        print(output)
-        print("\n注意力权重 attention_weights:")
-        print(attention_weights)
-
-        # 检查输出形状
-        assert output.shape == (batch_size, seq_len_q, embedding_size), f"输出形状错误: {output.shape}"
-        assert attention_weights.shape == (batch_size, seq_len_q, seq_len_k), f"注意力权重形状错误: {attention_weights.shape}"
-
-        print("\n测试通过！")
-
-    def test_multi_head_attention():
-        # 参数设置
-        batch_size = 128
-        seq_len_q = 5
-        seq_len_k = 6
-        embedding_size = 8
-        new_embedding_size = 4
-        head_size = 4
-        dropout_p = 0.
-
-        # 随机生成输入张量
-        q = torch.randn(batch_size, seq_len_q, embedding_size)  # 查询张量 (B, Hq, D)
-        k = torch.randn(batch_size, seq_len_k, embedding_size)  # 键张量 (B, Hk, D)
-        v = torch.randn(batch_size, seq_len_k, embedding_size)  # 值张量 (B, Hk, D)
-
-        # 创建掩码（可选）
-        mask = torch.zeros(batch_size, seq_len_q, seq_len_k, dtype=torch.bool)  # (B, Hq, Hk)
-        mask[:, :, 4:] = True  # 掩码掉部分位置
-
-        # 初始化多头注意力机制
-        multi_head_attention = MultiHeadAttention(
-            embedding_size=embedding_size,
-            new_embedding_size=new_embedding_size,
-            head_size=head_size,
-            p=dropout_p
+        # 初始化模型
+        encoder = Encoder(
+            src_vocab_size=src_vocab_size,
+            embedding_size=d_model,
+            head_size=n_head,
+            ffn_size=ffn_size,
+            num_blocks=num_blocks,
+            p=0.1
         )
 
-        # 前向传播
-        output, attention_weights = multi_head_attention(q, k, v, mask)
+        decoder = Decoder(
+            trg_vocab_size=trg_vocab_size,
+            embedding_size=d_model,
+            head_size=n_head,
+            ffn_size=ffn_size,
+            num_blocks=num_blocks,
+            p=0.1
+        )
 
-        # 打印结果
-        print("查询张量 q:")
-        print(q.size())
-        print("\n键张量 k:")
-        print(k.size())
-        print("\n值张量 v:")
-        print(v.size())
-        print("\n掩码 mask:")
-        print(mask.size())
-        print("\n输出张量 output:")
-        print(output.size())
-        print("\n注意力权重 attention_weights:")
-        print(attention_weights.size())
+        # 生成测试数据 ------------------------------------------------------------
+        # 原始输入（token索引）
+        src = torch.randint(0, src_vocab_size, (batch_size, src_seq_len))  # (32, 50)
+        trg = torch.randint(0, trg_vocab_size, (batch_size, trg_seq_len))  # (32, 50)
 
-        # 检查输出形状
-        assert output.shape == (batch_size, seq_len_q, embedding_size), f"输出形状错误: {output.shape}"
-        assert attention_weights.shape == (batch_size, head_size, seq_len_q, seq_len_k), f"注意力权重形状错误: {attention_weights.shape}"
+        print("\n[输入验证]")
+        print(f"源序列形状: {src.shape} (batch_size, src_seq_len)")
+        print(f"目标序列形状: {trg.shape} (batch_size, trg_seq_len)")
 
-        print("\n测试通过！")
+        # 编码器数据流测试 --------------------------------------------------------
+        print("\n[编码器阶段]")
 
-    # test_positional_encoding()
-    # test_attention()
-    test_multi_head_attention()
+        # 1. 词嵌入
+        embed_layer = encoder.embed
+        embed_output = embed_layer(src)  # (32, 50, 512)
+        print(f"嵌入层输出形状: {embed_output.shape} (batch_size, seq_len, d_model)")
+        assert embed_output.shape == (batch_size, src_seq_len, d_model)
+
+        # 2. 位置编码
+        pos_encoder = encoder.pos_embed
+        pos_output = pos_encoder(embed_output)  # (32, 50, 512)
+        print(f"位置编码输出形状: {pos_output.shape} (batch_size, seq_len, d_model)")
+        assert pos_output.shape == (batch_size, src_seq_len, d_model)
+
+        # 3. 编码器块处理
+        encoder_mask = Mask().get_padding_mask(src, src, 0)  # (32, 50, 50)
+        encoder_output = pos_output
+        for i, block in enumerate(encoder.blocks):
+            encoder_output = block(encoder_output, encoder_mask)
+            print(f"编码器块 {i + 1} 输出形状: {encoder_output.shape}")
+            assert encoder_output.shape == (batch_size, src_seq_len, d_model)
+
+        # 解码器数据流测试 --------------------------------------------------------
+        print("\n[解码器阶段]")
+
+        # 1. 词嵌入
+        trg_embed_layer = decoder.embed
+        trg_embed_output = trg_embed_layer(trg)  # (32, 50, 512)
+        print(f"目标嵌入层输出形状: {trg_embed_output.shape}")
+        assert trg_embed_output.shape == (batch_size, trg_seq_len, d_model)
+
+        # 2. 位置编码
+        trg_pos_output = decoder.pos_embed(trg_embed_output)  # (32, 50, 512)
+        print(f"目标位置编码输出形状: {trg_pos_output.shape}")
+        assert trg_pos_output.shape == (batch_size, trg_seq_len, d_model)
+
+        # 3. 解码器块处理
+        decoder_self_mask = (
+            Mask().get_padding_mask(trg, trg, 0) | Mask().get_causal_mask(trg, trg)
+        )
+        decoder_encoder_mask = Mask().get_padding_mask(trg, src, 0)
+
+        decoder_output = trg_pos_output
+        for i, block in enumerate(decoder.blocks):
+            decoder_output = block(
+                decoder_output,
+                encoder_output,
+                decoder_self_mask,
+                decoder_encoder_mask
+            )
+            print(f"解码器块 {i + 1} 输出形状: {decoder_output.shape}")
+            assert decoder_output.shape == (batch_size, trg_seq_len, d_model)
+
+        # 最终输出验证 ----------------------------------------------------------
+        print("\n[最终输出]")
+        logits = decoder.linear_out(decoder_output)  # (32, 50, 15000)
+        logits = logits.view(-1, trg_vocab_size)     # (32*50, 15000)
+
+        print("解码器最终输出形状:", logits.shape)
+        assert logits.shape == (batch_size * trg_seq_len, trg_vocab_size), \
+            f"形状错误: 期望 {(batch_size * trg_seq_len, trg_vocab_size)}, 实际 {logits.shape}"
+
+        print("\n全流程形状验证通过！")
+
+    def test_transformer_full_pipeline():
+        # 配置参数
+        batch_size = 32
+        src_seq_len = 50
+        trg_seq_len = 50
+        d_model = 512
+        n_head = 8
+        ffn_size = 2048
+        num_blocks = 6
+        src_vocab_size = 10000
+        trg_vocab_size = 15000
+
+        # 初始化完整Transformer模型
+        transformer = Transformer(
+            encoder=Encoder(
+                src_vocab_size=src_vocab_size,
+                embedding_size=d_model,
+                head_size=n_head,
+                ffn_size=ffn_size,
+                num_blocks=num_blocks,
+                p=0.1
+            ),
+            decoder=Decoder(
+                trg_vocab_size=trg_vocab_size,
+                embedding_size=d_model,
+                head_size=n_head,
+                ffn_size=ffn_size,
+                num_blocks=num_blocks,
+                p=0.1
+            )
+        )
+
+        # 生成测试数据 ------------------------------------------------------------
+        src = torch.randint(1, src_vocab_size - 1, (batch_size, src_seq_len))  # 避免pad token
+        trg = torch.randint(1, trg_vocab_size - 1, (batch_size, trg_seq_len))
+
+        print("\n=== 输入验证 ===")
+        print(f"源序列形状: {src.shape} (应满足: [32, 50])")
+        print(f"目标序列形状: {trg.shape} (应满足: [32, 50])")
+
+        # 完整前向传播流程验证 ----------------------------------------------------
+        print("\n=== 编码器阶段验证 ===")
+
+        # 1. 编码器嵌入层
+        encoder_emb = transformer.encoder.embed(src)
+        print(f"编码器嵌入输出形状: {encoder_emb.shape} (应满足: [32, 50, 512])")
+        assert encoder_emb.requires_grad, "编码器嵌入应启用梯度"
+
+        # 2. 位置编码验证
+        pos_encoded = transformer.encoder.pos_embed(encoder_emb)
+        print(f"位置编码输出形状: {pos_encoded.shape} (应满足: [32, 50, 512])")
+        assert not torch.allclose(encoder_emb, pos_encoded), "位置编码应有变化"
+
+        # 3. 编码器块处理
+        encoder_mask = Mask().get_padding_mask(src, src, 0)
+        encoder_output = pos_encoded
+        for i in range(num_blocks):
+            prev_output = encoder_output
+            encoder_output = transformer.encoder.blocks[i](encoder_output, encoder_mask)
+            print(f"编码器块 {i + 1} 输出形状: {encoder_output.shape}")
+            assert encoder_output.shape == (batch_size, src_seq_len, d_model)
+            assert not torch.allclose(prev_output, encoder_output), f"编码器块 {i + 1} 应有变化"
+
+        print("\n=== 解码器阶段验证 ===")
+
+        # 1. 解码器嵌入层
+        decoder_emb = transformer.decoder.embed(trg)
+        print(f"解码器嵌入输出形状: {decoder_emb.shape} (应满足: [32, 50, 512])")
+        assert decoder_emb.requires_grad, "解码器嵌入应启用梯度"
+
+        # 2. 解码器位置编码
+        decoder_pos = transformer.decoder.pos_embed(decoder_emb)
+        print(f"解码器位置编码输出形状: {decoder_pos.shape} (应满足: [32, 50, 512])")
+        assert not torch.allclose(decoder_emb, decoder_pos), "位置编码应有变化"
+
+        # 3. 解码器块处理
+        decoder_self_mask = (
+            Mask().get_padding_mask(trg, trg, 0) | Mask().get_causal_mask(trg, trg)
+        )
+        decoder_encoder_mask = Mask().get_padding_mask(trg, src, 0)
+
+        decoder_output = decoder_pos
+        for i in range(num_blocks):
+            prev_output = decoder_output
+            decoder_output = transformer.decoder.blocks[i](
+                decoder_output,
+                encoder_output,
+                decoder_self_mask,
+                decoder_encoder_mask
+            )
+            print(f"解码器块 {i + 1} 输出形状: {decoder_output.shape}")
+            assert decoder_output.shape == (batch_size, trg_seq_len, d_model)
+            assert not torch.allclose(prev_output, decoder_output), f"解码器块 {i + 1} 应有变化"
+
+        # 最终输出验证 ----------------------------------------------------------
+        print("\n=== 最终输出验证 ===")
+        logits = transformer.decoder.linear_out(decoder_output)  # (32, 50, 15000)
+        final_output = logits.view(-1, trg_vocab_size)           # (1600, 15000)
+
+        print("最终输出形状:", final_output.shape)
+        assert final_output.shape == (batch_size * trg_seq_len, trg_vocab_size)
+        assert not torch.all(torch.isnan(final_output)), "输出包含NaN值"
+        assert not torch.all(torch.isinf(final_output)), "输出包含Inf值"
+
+        # 概率分布验证
+        prob = torch.softmax(final_output, dim=-1)
+        assert torch.allclose(prob.sum(dim=1), torch.ones(batch_size * trg_seq_len),
+                              rtol=1e-3), "概率和不等于1"
+
+        print("\n=== 反向传播验证 ===")
+        # 模拟损失计算
+        dummy_target = torch.randint(0, trg_vocab_size, (batch_size * trg_seq_len,))
+        loss = torch.nn.functional.cross_entropy(final_output, dummy_target)
+        loss.backward()
+
+        # 检查关键参数梯度
+        for name, param in transformer.named_parameters():
+            assert param.grad is not None, f"参数 {name} 无梯度"
+            assert not torch.all(param.grad == 0), f"参数 {name} 梯度全零"
+
+        print("梯度流动验证通过")
+
+    def test_transformer_end_to_end():
+        # 配置参数
+        batch_size = 4
+        src_seq_len = 50
+        trg_seq_len = 45
+        d_model = 512
+        n_head = 8
+        ffn_size = 2048
+        num_blocks = 3
+        src_vocab_size = 10000
+        trg_vocab_size = 15000
+
+        # 初始化完整Transformer
+        transformer = Transformer(
+            encoder=Encoder(
+                src_vocab_size=src_vocab_size,
+                embedding_size=d_model,
+                head_size=n_head,
+                ffn_size=ffn_size,
+                num_blocks=num_blocks,
+                p=0.1
+            ),
+            decoder=Decoder(
+                trg_vocab_size=trg_vocab_size,
+                embedding_size=d_model,
+                head_size=n_head,
+                ffn_size=ffn_size,
+                num_blocks=num_blocks,
+                p=0.1
+            )
+        )
+
+        # 生成测试数据 ------------------------------------------------------------
+        # 创建含padding的真实模拟数据（假设pad_id=0）
+        src = torch.randint(1, src_vocab_size - 1, (batch_size, src_seq_len))
+        trg = torch.randint(1, trg_vocab_size - 1, (batch_size, trg_seq_len))
+
+        # 添加随机padding（约20%的位置为0）
+        src_mask = torch.rand(src.shape) < 0.2
+        trg_mask = torch.rand(trg.shape) < 0.2
+        src = src.masked_fill(src_mask, 0)
+        trg = trg.masked_fill(trg_mask, 0)
+
+        print("\n=== 输入验证 ===")
+        print(f"源序列形状: {src.shape} (含 {src.eq(0).sum()} 个pad)")
+        print(f"目标序列形状: {trg.shape} (含 {trg.eq(0).sum()} 个pad)")
+
+        # 完整前向传播验证 --------------------------------------------------------
+        print("\n=== 前向传播验证 ===")
+        logits = transformer(
+            encoder_input=src,
+            decoder_input=trg,
+            src_who_is_pad=0,
+            trg_who_is_pad=0
+        )
+
+        # 验证输出形状
+        expected_shape = (batch_size * trg_seq_len, trg_vocab_size)
+        print(f"输出形状: {logits.shape} (应满足: {expected_shape})")
+        assert logits.shape == expected_shape, "输出形状错误"
+
+        # 验证数值合理性
+        assert not torch.isnan(logits).any(), "输出包含NaN值"
+        assert not torch.isinf(logits).any(), "输出包含Inf值"
+
+        # 验证概率分布
+        probs = torch.softmax(logits, dim=-1)
+        prob_sums = probs.sum(dim=-1)
+        assert torch.allclose(prob_sums, torch.ones_like(prob_sums), atol=1e-4), "概率和不等于1"
+
+        # 注意力机制验证 ---------------------------------------------------------
+        # 获取最后一个解码器块的注意力权重
+        with torch.no_grad():
+            encoder_output = transformer.encoder(src, 0)
+            _ = transformer.decoder(trg, src, encoder_output, 0, 0)
+            _ = transformer.decoder.blocks[-1]
+
+        # 反向传播验证 ----------------------------------------------------------
+        print("\n=== 反向传播验证 ===")
+        transformer.zero_grad()
+
+        # 模拟真实标签（忽略pad位置）
+        labels = torch.randint(0, trg_vocab_size, (batch_size, trg_seq_len))
+        labels[trg == 0] = -100  # 忽略pad位置
+
+        loss = torch.nn.functional.cross_entropy(
+            logits.view(-1, trg_vocab_size),
+            labels.view(-1),
+            ignore_index=-100
+        )
+        loss.backward()
+
+        # 检查梯度流动
+        grad_exists = []
+        for name, param in transformer.named_parameters():
+            grad_valid = (param.grad is not None) and (param.grad.abs().sum() > 0)
+            grad_exists.append(grad_valid)
+            print(f"{name:50} 梯度存在: {grad_valid}")
+
+        assert all(grad_exists), "存在未更新参数"
+        print(f"总损失值: {loss.item():.4f}")
+
+    # set seed
+    seed = 50000
+    torch.manual_seed(seed)  # CPU 上的随机数
+    torch.cuda.manual_seed(seed)  # 当前 GPU 的随机数
+    torch.cuda.manual_seed_all(seed)  # 所有 GPU 的随机数（如果有多个 GPU）
+
+    # 禁用 cuDNN 的非确定性算法
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+    # unit tests
+    test_positional_encoding_shapes()
+    test_self_attention_shapes()
+    test_multi_head_attention_shapes()
+    test_encoder_block_shapes()
+
+    # test
+    test_encoder_decoder_data_flow()
+    test_transformer_full_pipeline()
+    test_transformer_end_to_end()
+    print("All tests passed!")
