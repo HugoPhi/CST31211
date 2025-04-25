@@ -1,4 +1,3 @@
-# inference.py
 import torch
 from torch.nn.utils.rnn import pad_sequence
 from nltk.translate.bleu_score import corpus_bleu
@@ -66,7 +65,9 @@ class Translator:
                 )
 
             # 获取最后一个token的预测
-            next_token = logits[:, -1].argmax(-1)
+            # print(logits)
+            next_token = logits[-1, :].argmax(-1)
+            # print(next_token)
             # print()
             # print(f'decoder input: {decoder_input}')
             decoder_input = torch.cat(
@@ -76,7 +77,7 @@ class Translator:
             # 遇到EOS则停止，同时拼接EOS
             if next_token.item() == 3:
                 decoder_input = torch.cat(
-                    [decoder_input, torch.tensor(3).unsqueeze(0).unsqueeze(0)], dim=-1
+                    [decoder_input, torch.tensor(3).unsqueeze(0).unsqueeze(0).to(self.device)], dim=-1
                 )
                 break
 
@@ -122,23 +123,36 @@ if __name__ == "__main__":
         trg_vocab=trg_vocab
     )
 
-    # 计算BLEU分数
-    bleu_score = translator.calculate_bleu(test_loader)
-    print(f"\nBLEU Score: {bleu_score:.4f}")
+    # 计算 BLEU 分数
+    if True:
+        bleu_score = translator.calculate_bleu(test_loader)
+        print(f"\nBLEU Score: {bleu_score:.4f}")
 
-    # 示例翻译
-    example_src = [
-        "Ein Mann mit einem orangefarbenen Hut der etwas anstarrt.",
-        "Zwei Männer laufen die Straße entlang."
+    # 示例翻译 - 德语到英语，包含标准答案
+    example_src_with_refs = [
+        ("Die Katze ist auf dem Tisch .", "The cat is on the table."),
+        ("Sie liest jeden Tag ein Buch .", "She reads a book every day."),
+        ("Der Hund spielt im Garten .", "The dog is playing in the garden."),
+        ("Wir gehen ins Kino heute Abend .", "We are going to the cinema this evening."),
+        ("Das Wetter ist sehr schön heute .", "The weather is very nice today."),
+        ("Er hat eine rote Jacke an .", "He is wearing a red jacket."),
+        ("Ich habe Hunger .", "I am hungry."),
+        ("Es gibt viele Bücher im Regal .", "There are many books on the shelf."),
+        ("Kannst du mir helfen, bitte ?", "Can you help me, please?"),
+        ("Morgen werde ich einkaufen gehen .", "Tomorrow I will go shopping.")
     ]
 
-    print("\nExample Translations:")
-    for src in example_src:
+    print("\nExample Translations (German -> English):")
+    for src, ref_translation in example_src_with_refs:
         # 编码源句子
         src_encoded = src_vocab.encode(src, add_special_tokens=False)
 
         # 生成翻译
         translation = translator.translate(src_encoded)
+        translation = " ".join(translation)
 
-        print(f"\nSource: {src}")
-        print(f"Translation: {translation}")
+        # 打印双语对照结果，包括标准答案
+        print()
+        print(f"Source (German)                : {src}")
+        print(f"Reference Translation (English): {ref_translation}")
+        print(f"Model Translation (English)    : {translation}")

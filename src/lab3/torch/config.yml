@@ -1,4 +1,4 @@
 data:
-  task: 'en->de'
-  max_length: 15
+  task: 'de->en'
+  max_length: 32
   batch_size: 128

@@ -8,7 +8,7 @@ L: max_len
 H: hidden size of K, Q, V after mapping from input
 D: embedding_size
 '''
-
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # 旋转位置编码
 class PositionalEncoding(nn.Module):
@@ -369,7 +369,7 @@ class Decoder(nn.Module):
 
         decoder_self_padding_mask = Mask().get_padding_mask(decoder_input, decoder_input, trg_who_is_pad)
         decoder_self_causal_mask = Mask().get_causal_mask(decoder_input, decoder_input)
-        decoder_self_mask = decoder_self_padding_mask | decoder_self_causal_mask  # can not use 'or' here
+        decoder_self_mask = decoder_self_padding_mask.to(device) | decoder_self_causal_mask.to(device)  # can not use 'or' here
 
         decoder_encoder_padding_mask = Mask().get_padding_mask(decoder_input, encoder_input, src_who_is_pad)
         decoder_encoder_mask = decoder_encoder_padding_mask

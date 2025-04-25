@@ -212,8 +212,8 @@ if __name__ == "__main__":
         'dropout': 0.1,
 
         # 训练参数
-        'num_epochs': 1,
-        'lr': 3e-4,
+        'num_epochs': 30,
+        'lr': 5e-3,
         'weight_decay': 0.01,
         'warmup_steps': 4000,
         'max_grad_norm': 1.0,
