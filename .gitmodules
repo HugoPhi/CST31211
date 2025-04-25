@@ -1,3 +1,6 @@
 [submodule "plugins/lrkit"]
 	path = plugins/lrkit
 	url = https://github.com/HugoPhi/lrkit.git
+[submodule "src/lab3/torch/data"]
+	path = src/lab3/torch/data
+	url = https://github.com/multi30k/dataset.git
