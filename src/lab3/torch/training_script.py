@@ -1,4 +1,5 @@
 import os
+import yaml
 import torch
 import logging
 from torch import nn
@@ -6,7 +7,8 @@ from tqdm import tqdm
 from datetime import datetime
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import LambdaLR
-from data_process import src_vocab, trg_vocab, train_loader, valid_loader  # 导入数据模块
+
+from data_process import src_vocab, trg_vocab, train_loader, valid_loader
 
 from model import Encoder, Decoder, Transformer
 
@@ -24,9 +26,16 @@ logging.basicConfig(
 class TransformerTrainer:
     def __init__(self, config):
         self.config = config
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        # 初始化模型
+        if torch.cuda.is_available():
+            device = torch.device("cuda")
+        elif torch.backends.mps.is_available():
+            device = torch.device("mps")
+        else:
+            device = torch.device("cpu")
+
+        self.device = device
+
         self.model = Transformer(
             encoder=Encoder(
                 src_vocab_size=len(src_vocab.word2idx),
@@ -46,7 +55,6 @@ class TransformerTrainer:
             )
         ).to(self.device)
 
-        # 优化器和调度器
         self.optimizer = AdamW(
             self.model.parameters(),
             lr=config['lr'],
@@ -64,30 +72,18 @@ class TransformerTrainer:
         )
 
         # 混合精度训练
-        self.scaler = torch.cuda.amp.GradScaler(enabled=config['use_amp'])
+        self.scaler = torch.amp.GradScaler(enabled=config['use_amp'])
 
         # 损失函数（忽略padding）
         self.criterion = nn.CrossEntropyLoss(ignore_index=0)
 
-        # 创建输出目录
         os.makedirs(config['output_dir'], exist_ok=True)
 
     def _prepare_batch(self, batch):
         """处理原始批次数据"""
         src_batch, trg_batch = batch
-
-        # 转换为张量并填充
-        src_tensor = nn.utils.rnn.pad_sequence(
-            [torch.tensor(s) for s in src_batch],
-            padding_value=0,
-            batch_first=True
-        ).to(self.device)
-
-        trg_tensor = nn.utils.rnn.pad_sequence(
-            [torch.tensor(t) for t in trg_batch],
-            padding_value=0,
-            batch_first=True
-        ).to(self.device)
+        src_tensor = torch.tensor(src_batch).to(self.device)
+        trg_tensor = torch.tensor(trg_batch).to(self.device)
 
         # 生成decoder输入输出
         trg_input = trg_tensor[:, :-1]  # 移除最后一个token
@@ -202,27 +198,9 @@ class TransformerTrainer:
 
 
 if __name__ == "__main__":
-    # 训练配置（与data_process中的config.yml保持一致）
-    config = {
-        # 模型参数
-        'd_model': 512,
-        'n_head': 8,
-        'ffn_size': 2048,
-        'num_blocks': 6,
-        'dropout': 0.1,
-
-        # 训练参数
-        'num_epochs': 30,
-        'lr': 5e-3,
-        'weight_decay': 0.01,
-        'warmup_steps': 4000,
-        'max_grad_norm': 1.0,
-
-        # 系统参数
-        'output_dir': './saved_models',
-        'save_interval': 5,
-        'use_amp': True
-    }
+    # 加载训练配置
+    with open('./config.yml') as f:
+        config = yaml.safe_load(f)['train']
 
     # 初始化训练器
     trainer = TransformerTrainer(config)

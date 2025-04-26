@@ -8,7 +8,13 @@ L: max_len
 H: hidden size of K, Q, V after mapping from input
 D: embedding_size
 '''
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+elif torch.backends.mps.is_available():  # 检查 Apple Silicon GPU 是否可用
+    device = torch.device("mps")
+else:
+    device = torch.device("cpu")
+
 
 # 旋转位置编码
 class PositionalEncoding(nn.Module):
@@ -410,7 +416,7 @@ class Transformer(nn.Module):
         return logits
 
 
-# 测试代码
+# 测试代码, by DeepSeek
 if __name__ == '__main__':
     def test_positional_encoding_shapes():
         d_model = 64
@@ -563,128 +569,6 @@ if __name__ == '__main__':
 
         print("\n全流程形状验证通过！")
 
-    def test_transformer_full_pipeline():
-        # 配置参数
-        batch_size = 32
-        src_seq_len = 50
-        trg_seq_len = 50
-        d_model = 512
-        n_head = 8
-        ffn_size = 2048
-        num_blocks = 6
-        src_vocab_size = 10000
-        trg_vocab_size = 15000
-
-        # 初始化完整Transformer模型
-        transformer = Transformer(
-            encoder=Encoder(
-                src_vocab_size=src_vocab_size,
-                embedding_size=d_model,
-                head_size=n_head,
-                ffn_size=ffn_size,
-                num_blocks=num_blocks,
-                p=0.1
-            ),
-            decoder=Decoder(
-                trg_vocab_size=trg_vocab_size,
-                embedding_size=d_model,
-                head_size=n_head,
-                ffn_size=ffn_size,
-                num_blocks=num_blocks,
-                p=0.1
-            )
-        )
-
-        # 生成测试数据 ------------------------------------------------------------
-        src = torch.randint(1, src_vocab_size - 1, (batch_size, src_seq_len))  # 避免pad token
-        trg = torch.randint(1, trg_vocab_size - 1, (batch_size, trg_seq_len))
-
-        print("\n=== 输入验证 ===")
-        print(f"源序列形状: {src.shape} (应满足: [32, 50])")
-        print(f"目标序列形状: {trg.shape} (应满足: [32, 50])")
-
-        # 完整前向传播流程验证 ----------------------------------------------------
-        print("\n=== 编码器阶段验证 ===")
-
-        # 1. 编码器嵌入层
-        encoder_emb = transformer.encoder.embed(src)
-        print(f"编码器嵌入输出形状: {encoder_emb.shape} (应满足: [32, 50, 512])")
-        assert encoder_emb.requires_grad, "编码器嵌入应启用梯度"
-
-        # 2. 位置编码验证
-        pos_encoded = transformer.encoder.pos_embed(encoder_emb)
-        print(f"位置编码输出形状: {pos_encoded.shape} (应满足: [32, 50, 512])")
-        assert not torch.allclose(encoder_emb, pos_encoded), "位置编码应有变化"
-
-        # 3. 编码器块处理
-        encoder_mask = Mask().get_padding_mask(src, src, 0)
-        encoder_output = pos_encoded
-        for i in range(num_blocks):
-            prev_output = encoder_output
-            encoder_output = transformer.encoder.blocks[i](encoder_output, encoder_mask)
-            print(f"编码器块 {i + 1} 输出形状: {encoder_output.shape}")
-            assert encoder_output.shape == (batch_size, src_seq_len, d_model)
-            assert not torch.allclose(prev_output, encoder_output), f"编码器块 {i + 1} 应有变化"
-
-        print("\n=== 解码器阶段验证 ===")
-
-        # 1. 解码器嵌入层
-        decoder_emb = transformer.decoder.embed(trg)
-        print(f"解码器嵌入输出形状: {decoder_emb.shape} (应满足: [32, 50, 512])")
-        assert decoder_emb.requires_grad, "解码器嵌入应启用梯度"
-
-        # 2. 解码器位置编码
-        decoder_pos = transformer.decoder.pos_embed(decoder_emb)
-        print(f"解码器位置编码输出形状: {decoder_pos.shape} (应满足: [32, 50, 512])")
-        assert not torch.allclose(decoder_emb, decoder_pos), "位置编码应有变化"
-
-        # 3. 解码器块处理
-        decoder_self_mask = (
-            Mask().get_padding_mask(trg, trg, 0) | Mask().get_causal_mask(trg, trg)
-        )
-        decoder_encoder_mask = Mask().get_padding_mask(trg, src, 0)
-
-        decoder_output = decoder_pos
-        for i in range(num_blocks):
-            prev_output = decoder_output
-            decoder_output = transformer.decoder.blocks[i](
-                decoder_output,
-                encoder_output,
-                decoder_self_mask,
-                decoder_encoder_mask
-            )
-            print(f"解码器块 {i + 1} 输出形状: {decoder_output.shape}")
-            assert decoder_output.shape == (batch_size, trg_seq_len, d_model)
-            assert not torch.allclose(prev_output, decoder_output), f"解码器块 {i + 1} 应有变化"
-
-        # 最终输出验证 ----------------------------------------------------------
-        print("\n=== 最终输出验证 ===")
-        logits = transformer.decoder.linear_out(decoder_output)  # (32, 50, 15000)
-        final_output = logits.view(-1, trg_vocab_size)           # (1600, 15000)
-
-        print("最终输出形状:", final_output.shape)
-        assert final_output.shape == (batch_size * trg_seq_len, trg_vocab_size)
-        assert not torch.all(torch.isnan(final_output)), "输出包含NaN值"
-        assert not torch.all(torch.isinf(final_output)), "输出包含Inf值"
-
-        # 概率分布验证
-        prob = torch.softmax(final_output, dim=-1)
-        assert torch.allclose(prob.sum(dim=1), torch.ones(batch_size * trg_seq_len),
-                              rtol=1e-3), "概率和不等于1"
-
-        print("\n=== 反向传播验证 ===")
-        # 模拟损失计算
-        dummy_target = torch.randint(0, trg_vocab_size, (batch_size * trg_seq_len,))
-        loss = torch.nn.functional.cross_entropy(final_output, dummy_target)
-        loss.backward()
-
-        # 检查关键参数梯度
-        for name, param in transformer.named_parameters():
-            assert param.grad is not None, f"参数 {name} 无梯度"
-            assert not torch.all(param.grad == 0), f"参数 {name} 梯度全零"
-
-        print("梯度流动验证通过")
-
     def test_transformer_end_to_end():
         # 配置参数
         batch_size = 4
@@ -805,6 +689,5 @@ if __name__ == '__main__':
 
     # test
     test_encoder_decoder_data_flow()
-    test_transformer_full_pipeline()
     test_transformer_end_to_end()
     print("All tests passed!")

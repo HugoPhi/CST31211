@@ -7,8 +7,16 @@ from tqdm import tqdm
 
 
 class Translator:
-    def __init__(self, model_path, src_vocab, trg_vocab, device='cuda'):
-        self.device = torch.device(device if torch.cuda.is_available() else 'cpu')
+    def __init__(self, model_path, src_vocab, trg_vocab):
+        if torch.cuda.is_available():
+            device = torch.device("cuda")
+        elif torch.backends.mps.is_available():  # 检查 Apple Silicon GPU 是否可用
+            device = torch.device("mps")
+        else:
+            device = torch.device("cpu")
+
+        self.device = device
+
         self.src_vocab = src_vocab
         self.trg_vocab = trg_vocab
 

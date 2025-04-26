@@ -5,13 +5,12 @@ from collections import Counter
 class Vocab:
     def __init__(self, special_tokens=None):
         """
-        初始化Vocab类
         :param special_tokens: 特殊标记列表，默认包含 '<PAD>': 0, '<UNK>':1, '<BOS>':2, '<EOS>':3
         """
         self.word2idx = {}
         self.idx2word = {}
         if special_tokens is None:
-            special_tokens = ['<PAD>', '<UNK>', '<BOS>', '<EOS>']
+            special_tokens = ["<PAD>", "<UNK>", "<BOS>", "<EOS>"]
         for token in special_tokens:
             self.add_word(token)
 
@@ -56,9 +55,9 @@ class Vocab:
         """
         tokens = self.tokenize(sentence)
         if add_special_tokens:
-            tokens = ['<BOS>'] + tokens + ['<EOS>']
+            tokens = ["<BOS>"] + tokens + ["<EOS>"]
 
-        arr = [self.word2idx.get(word, self.word2idx['<UNK>']) for word in tokens]
+        arr = [self.word2idx.get(word, self.word2idx["<UNK>"]) for word in tokens]
 
         if max_length is None:
             return arr
@@ -67,7 +66,7 @@ class Vocab:
                 arr += [0] * (max_length - len(arr))
                 return arr
             else:
-                return arr[:max_length - 1] + [3]
+                return arr[: max_length - 1] + [3]
 
     def decode(self, indices, ignore_special_tokens=False):
         """
@@ -78,8 +77,8 @@ class Vocab:
         """
         words = []
         for idx in indices:
-            word = self.idx2word.get(idx, '<UNK>')
-            if ignore_special_tokens and word in ['<PAD>', '<BOS>', '<EOS>']:
+            word = self.idx2word.get(idx, "<UNK>")
+            if ignore_special_tokens and word in ["<PAD>", "<BOS>", "<EOS>"]:
                 continue
             words.append(word)
         return words
@@ -87,13 +86,13 @@ class Vocab:
     @staticmethod
     def load_data(file_path):
         """加载并返回文件中的所有句子"""
-        with open(file_path, 'r', encoding='utf-8') as file:
+        with open(file_path, "r", encoding="utf-8") as file:
             sentences = file.readlines()
         return [sentence.strip() for sentence in sentences]
 
     def save_vocab(self, path):
         """将词表保存到指定路径"""
-        with open(path, 'w', encoding='utf-8') as f:
+        with open(path, "w", encoding="utf-8") as f:
             for word, idx in self.word2idx.items():
                 f.write(f"{word}\t{idx}\n")
 
@@ -101,9 +100,9 @@ class Vocab:
         """从指定路径加载词表"""
         self.word2idx = {}
         self.idx2word = {}
-        with open(path, 'r', encoding='utf-8') as f:
+        with open(path, "r", encoding="utf-8") as f:
             for line in f:
-                word, idx = line.strip().split('\t')
+                word, idx = line.strip().split("\t")
                 idx = int(idx)
                 self.word2idx[word] = idx
                 self.idx2word[idx] = word
@@ -115,16 +114,16 @@ class Vocab:
         :return: 分词后的列表
         """
         # 使用正则表达式分离单词和标点符号
-        words_and_punct = re.findall(r'\w+|[^\w\s]', sentence, re.UNICODE)
+        words_and_punct = re.findall(r"\w+|[^\w\s]", sentence, re.UNICODE)
         return words_and_punct
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     from data_process import train_path
 
     # 加载德文和英文训练数据
-    de_sentences = Vocab.load_data(train_path + 'train.de')
-    en_sentences = Vocab.load_data(train_path + 'train.en')
+    de_sentences = Vocab.load_data(train_path + "train.de")
+    en_sentences = Vocab.load_data(train_path + "train.en")
 
     # 构建德文和英文的词表
     de_vocab = Vocab()
@@ -141,7 +140,7 @@ if __name__ == '__main__':
     print("英文词表大小:", len(en_vocab.word2idx))
 
     # 示例1：德语
-    print('>>> 德语')
+    print(">>> 德语")
     sample_sentence = "Ein Mann hält eine Kamera."
     print("原始的句子  :", sample_sentence)
     encoded = de_vocab.encode(sample_sentence, max_length=15)
@@ -150,8 +149,10 @@ if __name__ == '__main__':
     print("解码后的句子:", decoded)
 
     # 示例2：英语小写
-    print('>>> 英语小写')
-    sample_sentence = "I'm your father, I'm your father, I'm your father, I'm your father."
+    print(">>> 英语小写")
+    sample_sentence = (
+        "I'm your father, I'm your father, I'm your father, I'm your father."
+    )
     print("原始的句子  :", sample_sentence)
     encoded = en_vocab.encode(sample_sentence, max_length=5)
     print("编码后的句子:", encoded)
@@ -159,7 +160,7 @@ if __name__ == '__main__':
     print("解码后的句子:", decoded)
 
     # 示例2：英语大写
-    print('>>> 英语大写')
+    print(">>> 英语大写")
     sample_sentence = "I'm yOuR Father."
     print("原始的句子  :", sample_sentence)
     encoded = en_vocab.encode(sample_sentence, max_length=15)

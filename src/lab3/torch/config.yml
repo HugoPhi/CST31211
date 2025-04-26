@@ -2,3 +2,22 @@ data:
   task: 'de->en'
   max_length: 32
   batch_size: 128
+train:
+  # 模型参数
+  d_model: 512
+  n_head: 8
+  ffn_size: 2048
+  num_blocks: 6
+  dropout: 0.1
+
+  # 训练参数
+  num_epochs: 30
+  lr: 0.005
+  weight_decay: 0.01
+  warmup_steps: 4000
+  max_grad_norm: 1.0
+
+  # 系统参数
+  output_dir: './ckpts'
+  save_interval: 5
+  use_amp: true

@@ -126,7 +126,7 @@ else:
     print("Dataset is already downloaded.")
 
 
-with open('./config.yml') as f:
+with open('.config.yml') as f:
     config = yaml.safe_load(f)
 
     task = config['data']['task']
