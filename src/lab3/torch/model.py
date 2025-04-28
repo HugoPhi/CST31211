@@ -406,6 +406,8 @@ class Transformer(nn.Module):
         encoder_input: (B, L) ~int ~raw_sentence
         decoder_input: (B, L) ~int ~raw_sentence
         src_who_is_pad, trg_who_is_pad: (,) ~int
+
+        -> (B*L, trg_vocab_size)
         '''
         encoder_output = self.encoder(encoder_input, src_who_is_pad)
 

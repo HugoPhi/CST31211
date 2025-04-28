@@ -166,3 +166,4 @@ cython_debug/
 #.idea/
 src/lab3/torch/datasets
 .DS_Store
+src/lab3/torch/ckpts

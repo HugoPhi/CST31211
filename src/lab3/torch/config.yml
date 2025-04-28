@@ -21,3 +21,5 @@ train:
   output_dir: './ckpts'
   save_interval: 5
   use_amp: true
+  force_retrain: False  # 强制重新训练
+  resume_checkpoint: "latest"  # 可选值: "latest", "best"

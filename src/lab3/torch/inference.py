@@ -48,16 +48,15 @@ class Translator:
 
     def _prepare_input(self, src_seq):
         """处理输入序列"""
-        src_tensor = torch.tensor([2] + src_seq + [3]).to(self.device)
+        src_tensor = torch.tensor(src_seq).to(self.device)
 
         # 添加batch维度并填充
         src_tensor = src_tensor.unsqueeze(0)  # [1, seq_len]
-        src_pad_mask = (src_tensor == 0)
-        return src_tensor, src_pad_mask
+        return src_tensor
 
     def translate(self, src_seq, max_length=50):
         """使用贪心算法进行翻译"""
-        src_tensor, src_pad_mask = self._prepare_input(src_seq)
+        src_tensor = self._prepare_input(src_seq)
 
         # 初始化decoder输入
         decoder_input = torch.tensor([[2]]).to(self.device)
@@ -146,14 +145,32 @@ if __name__ == "__main__":
         ("Er hat eine rote Jacke an .", "He is wearing a red jacket."),
         ("Ich habe Hunger .", "I am hungry."),
         ("Es gibt viele Bücher im Regal .", "There are many books on the shelf."),
-        ("Kannst du mir helfen, bitte ?", "Can you help me, please?"),
-        ("Morgen werde ich einkaufen gehen .", "Tomorrow I will go shopping.")
+        ("bitte.", "Can you help me, please?"),
+        ("Morgen werde ich einkaufen gehen .", "Tomorrow I will go shopping."),
+        ("Eine alte Frau sitzt an einem Webstuhl und stellt Stoff her.", "An old woman sits at a loom and makes fabric."),
+        ("Ein Junge im Vordergrund blickt über andere Personen auf einem Platz.", "A boy in the foreground looks over other people on a square."),
+        ("Ein Mann in einer blauen Jacke hält einen Jungen an der Schulter.", "A man in a blue jacket holds a boy by the shoulder."),
+        ("Drei braune Hunde springen an der blau gekleideten Frau hoch.", "Three brown dogs jump up at the woman dressed in blue."),
+        ("Ein Junge hängt aus dem Fenster eines vorbeifahrenden Taxis.", "A boy leans out of the window of a passing taxi."),
+        ("Ein Mann in einem grauen Shirt springt über die Spitze einer Sanddüne in der Wüste.", "A man in a gray shirt jumps over the top of a sand dune in the desert."),
+        ("Ein Kind in einem gelben Shirt springt rauf und runter.", "A child in a yellow shirt jumps up and down."),
+        ("Ein kleiner Junge in einem weiß gestreiften Shirt und mit einem Stirnband hält einen Tennisschläger.", "A little boy in a white striped shirt and headband holds a tennis racket."),
+        ("Zwei Hunde laufen im Wald weg von der Kamera.", "Two dogs run in the woods away from the camera."),
+        ("Ein Mädchen spielt komplett bekleidet im Springbrunnen.", "A girl plays fully dressed in the fountain."),
+        ("Drei junge Sumoringer stehen und hören einem Ansager zu.", "Three young sumo wrestlers stand and listen to an announcer."),
+        ("Zwei männliche Wanderer inspizieren einen Baumstamm, der am Rand eines Waldweges liegt.", "Two male hikers inspect a tree trunk lying at the edge of a forest path."),
+        ("Drei Spieler bringen einen gegnerischen Spieler zu Boden.", "Three players tackle an opposing player to the ground."),
+        ("Zwei Jungen überqueren eine Straße in einer Stadt während sie mit einem roten Fußball spielen.", "Two boys cross a street in a city while playing with a red soccer ball."),
+        ("Ein Mann hält einen anderen mit seinem Rücken hoch.", "A man holds another person up with his back."),
+        ("Weißer Hund auf einem Berg dreht sich zu etwas außerhalb des Bildes um, Himmel im Hintergrund.", "A white dog on a mountain turns to something outside the picture, sky in the background."),
+        ("Ein Junge fährt Skateboard auf einer Skateboardrampe.", "A boy is skateboarding on a skateboard ramp."),
+        ("Ein Musiker mit langen Haaren spielt Keyboard.", "A musician with long hair plays keyboard.")
     ]
 
     print("\nExample Translations (German -> English):")
     for src, ref_translation in example_src_with_refs:
         # 编码源句子
-        src_encoded = src_vocab.encode(src, add_special_tokens=False)
+        src_encoded = src_vocab.encode(src, add_special_tokens=True)
 
         # 生成翻译
         translation = translator.translate(src_encoded)
