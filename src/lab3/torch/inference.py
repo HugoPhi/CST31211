@@ -92,40 +92,33 @@ class Translator:
         output_tokens = decoder_input[0].cpu().tolist()
 
         # 去除特殊token并解码
-        filtered = [
-            t for t in output_tokens
-            if t not in {2, 3, 0}
-        ]
+        filtered = [t for t in output_tokens if t not in {2, 3, 0}]
 
         return self.trg_vocab.decode(filtered)
 
     def calculate_bleu(self, test_loader_):
         """计算整个测试集的BLEU分数"""
-        references = []
-        hypotheses = []
+        references, hypotheses = [], []
 
         for batch in tqdm(test_loader_, desc="Calculating BLEU"):
             src_batch, trg_batch = batch
 
             # 处理每个样本
             for src_seq, trg_seq in zip(src_batch, trg_batch):
-                # 解码参考翻译
                 ref = [self.trg_vocab.decode([t for t in trg_seq if t not in {0}])]
 
-                # 生成模型翻译
                 hyp = self.translate(src_seq)
 
                 references.append(ref)
                 hypotheses.append(hyp)
 
-        # 计算corpus BLEU
         return corpus_bleu(references, hypotheses)
 
 
 if __name__ == "__main__":
     # 初始化翻译器
     translator = Translator(
-        model_path='saved_models/best_model.pt',
+        model_path='ckpts/best_model.pt',
         src_vocab=src_vocab,
         trg_vocab=trg_vocab
     )

@@ -46,9 +46,7 @@ class TranslationDataset(Dataset):
 
 
 # 数据加载函数
-def load_datasets(
-    train_path, valid_path, test_path, src_vocab, trg_vocab, task, max_length=50, batch_size=32, drop_last=False
-):
+def load_datasets(train_path, valid_path, test_path, src_vocab, trg_vocab, task, max_length=50, batch_size=32, drop_last=False):
     """
     加载训练集、验证集和测试集
     :param train_path: 训练集路径
@@ -56,7 +54,7 @@ def load_datasets(
     :param test_path: 测试集路径
     :param src_vocab: 源语言词表 (Vocab 对象)
     :param trg_vocab: 目标语言词表 (Vocab 对象)
-    :param task: 任务，en->de or de->en
+    :param task: 任务, "en->de" or "de->en"
     :param max_length: 最大序列长度
     :param batch_size: 批量大小
     :param drop_last: 是否丢弃最后一个不完整的批次
