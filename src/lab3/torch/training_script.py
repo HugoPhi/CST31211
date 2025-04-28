@@ -3,11 +3,16 @@ import os
 import yaml
 import torch
 import logging
+import threading
 from torch import nn
 from tqdm import tqdm
 from datetime import datetime
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import LambdaLR
+
+import os
+import tempfile
+
 
 from data_process import src_vocab, trg_vocab, train_loader, valid_loader
 
@@ -116,7 +121,7 @@ class TransformerTrainer:
 
             self.optimizer.zero_grad()
 
-            with torch.amp.autocast(enabled=self.config['use_amp'], device_type=self.device.type):
+            with torch.cuda.amp.autocast(enabled=self.config['use_amp']):
                 logits = self.model(
                     encoder_input=prepared_batch['src'],
                     decoder_input=prepared_batch['trg_input'],
@@ -186,12 +191,10 @@ class TransformerTrainer:
                 checkpoint_path = latest_path
             else:
                 checkpoint_path = self.config['resume_checkpoint']
-
-            print(checkpoint_path)
             
             if os.path.exists(checkpoint_path):
                 self._load_checkpoint(checkpoint_path)
-                # 检查epoch合法性
+
                 if self.current_epoch >= self.config['num_epochs']:
                     logging.warning("检查点epoch超过配置总数，重置训练状态")
                     self._reset_training()
@@ -199,7 +202,6 @@ class TransformerTrainer:
             else:
                 logging.warning(f"指定检查点不存在: {checkpoint_path}")
 
-        # 自动恢复逻辑
         if os.path.exists(latest_path):
             checkpoint = torch.load(latest_path, map_location=self.device)
             if checkpoint['epoch'] >= self.config['num_epochs']:
@@ -258,10 +260,8 @@ class TransformerTrainer:
         # 保存最佳模型（不覆盖）
         if is_best:
             best_path = os.path.join(self.config['output_dir'], "best_model.pt")
-            if not os.path.exists(best_path) or state['best_loss'] < self.best_loss:
-                torch.save(state, best_path)
-                logging.info(f"发现新最佳模型：loss {state['best_loss']:.4f}")
-
+            torch.save(state, best_path)
+            logging.info(f"发现新最佳模型：loss {state['best_loss']:.4f}")
 
     def train(self, train_loader, val_loader=None):
         try:
@@ -270,8 +270,10 @@ class TransformerTrainer:
                 logging.info(f"训练周期 [{self.current_epoch}/{self.config['num_epochs']}]")
 
                 # 训练与验证流程
-                _ = self.train_epoch(train_loader)
+                train_loss = self.train_epoch(train_loader)
                 val_loss = self.validate(valid_loader) if val_loader else float('inf')
+                # print(f'[*] train loss: {train_loss}, val loss: {val_loss}, best val loss: {self.best_loss}')
+                logging.info(f'train loss: {train_loss}, val loss: {val_loss}, best val loss: {self.best_loss}')
 
                 # 更新最佳模型
                 if val_loss < self.best_loss:
@@ -284,16 +286,12 @@ class TransformerTrainer:
 
         except KeyboardInterrupt:
             logging.info(f"Training interrupted while runnig epoch {self.current_epoch}.")
-            # self.save_checkpoint(epoch='interrupted')
-            
 
 
 if __name__ == "__main__":
-    # 加载训练配置
     with open('./config.yml') as f:
         config = yaml.safe_load(f)['train']
 
-    # 初始化训练器
     trainer = TransformerTrainer(config)
 
     try:

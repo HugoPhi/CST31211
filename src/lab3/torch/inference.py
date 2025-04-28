@@ -48,7 +48,7 @@ class Translator:
 
     def _prepare_input(self, src_seq):
         """处理输入序列"""
-        src_tensor = torch.tensor(src_seq).to(self.device)
+        src_tensor = torch.tensor([2] + src_seq + [3]).to(self.device)
 
         # 添加batch维度并填充
         src_tensor = src_tensor.unsqueeze(0)  # [1, seq_len]
