@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-import torchinfo
 
 
 '''
@@ -417,6 +416,7 @@ class Transformer(nn.Module):
 # 2. Model structure
 # 3. Shape of out for Encoder, Decoder, Transformer
 if __name__ == '__main__':
+    import torchinfo
     device = torch.device("cpu")
 
     # 设置固定随机种子
@@ -448,7 +448,6 @@ if __name__ == '__main__':
     
     transformer = Transformer(encoder, decoder)
     # 2. 打印结构
-    print("\n=== 模型结构 ===")
     print('>> Encoder:')
     torchinfo.summary(
         encoder,

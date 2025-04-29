@@ -1,5 +1,4 @@
 import torch
-from torch.nn.utils.rnn import pad_sequence
 from nltk.translate.bleu_score import corpus_bleu
 from data_process import src_vocab, trg_vocab, test_loader  # 导入数据模块
 from model import Transformer, Encoder, Decoder  # 导入模型定义
@@ -48,7 +47,7 @@ class Translator:
 
     def _prepare_input(self, src_seq):
         """处理输入序列"""
-        src_tensor = torch.tensor([2] + src_seq + [3]).to(self.device)
+        src_tensor = torch.tensor(src_seq).to(self.device)
 
         # 添加batch维度并填充
         src_tensor = src_tensor.unsqueeze(0)  # [1, seq_len]
@@ -124,7 +123,7 @@ if __name__ == "__main__":
     )
 
     # 计算 BLEU 分数
-    if True:
+    if False:
         bleu_score = translator.calculate_bleu(test_loader)
         print(f"\nBLEU Score: {bleu_score:.4f}")
 
