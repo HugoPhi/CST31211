@@ -1,17 +1,13 @@
-import collections
 import os
 import yaml
 import torch
 import logging
-import threading
+import collections
 from torch import nn
 from tqdm import tqdm
 from datetime import datetime
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import LambdaLR
-
-import os
-import tempfile
 
 
 from data_process import src_vocab, trg_vocab, train_loader, valid_loader
@@ -89,11 +85,9 @@ class TransformerTrainer:
         # 新增训练状态跟踪
         self.current_epoch = 0
         self.best_loss = float('inf')
-        
+
         # 智能恢复训练逻辑
         self._auto_resume_training()
-
-
 
     def _prepare_batch(self, batch):
         """处理原始批次数据"""
@@ -191,7 +185,7 @@ class TransformerTrainer:
                 checkpoint_path = latest_path
             else:
                 checkpoint_path = self.config['resume_checkpoint']
-            
+
             if os.path.exists(checkpoint_path):
                 self._load_checkpoint(checkpoint_path)
 
