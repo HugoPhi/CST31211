@@ -168,3 +168,6 @@ src/lab3/torch/datasets
 .DS_Store
 src/lab3/torch/ckpts
 src/lab3/torch/log
+src/prj/yolov5_web_2.0/static/results
+src/prj/yolov5_web_2.0/static/uploads
+src/prj/yolov5_web_2.0/best.pt

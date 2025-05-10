@@ -123,7 +123,7 @@ if __name__ == "__main__":
     )
 
     # 计算 BLEU 分数
-    if False:
+    if True:
         bleu_score = translator.calculate_bleu(test_loader)
         print(f"\nBLEU Score: {bleu_score:.4f}")
 

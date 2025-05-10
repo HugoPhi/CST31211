@@ -1,0 +1,163 @@
+:root {
+  --bg-color: #2d2d2d;
+  --card-bg: #3d3d3d;
+  --text-color: #e0e0e0;
+  --accent: #4a9cff;
+  --success: #28a745;
+  --warning: #ffc107;
+  --danger: #dc3545;
+}
+
+body {
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 20px;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* 上传区域样式 */
+.upload-box {
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+.upload-btn {
+  display: inline-block;
+  padding: 30px 50px;
+  background: var(--card-bg);
+  border: 2px dashed #555;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.upload-btn:hover {
+  border-color: var(--accent);
+  background: #454545;
+}
+
+/* 卡片容器 */
+.card-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 20px;
+}
+
+.card {
+  background: var(--card-bg);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.2s;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+}
+
+.card img {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+}
+
+.card-info {
+  padding: 12px;
+}
+
+.card-status {
+  font-weight: bold;
+}
+
+.status-success {
+  color: var(--success);
+}
+
+.status-warning {
+  color: var(--warning);
+}
+
+.status-danger {
+  color: var(--danger);
+}
+
+.card-time {
+  font-size: 0.8em;
+  color: #888;
+  margin-top: 5px;
+}
+
+/* 模态框样式 */
+.modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  z-index: 1000;
+}
+
+.modal-content {
+  display: flex;
+  background: var(--bg-color);
+  width: 90%;
+  max-width: 1000px;
+  max-height: 80vh;
+  margin: 5% auto;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.modal-left {
+  flex: 1;
+  padding: 20px;
+  background: #000;
+}
+
+.modal-left img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.modal-right {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.close-btn {
+  float: right;
+  cursor: pointer;
+  font-size: 1.5em;
+  padding: 0 10px;
+}
+
+.result-item {
+  padding: 10px;
+  margin: 8px 0;
+  background: #454545;
+  border-radius: 6px;
+  border-left: 4px solid var(--accent);
+}
+
+.loading {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--accent);
+  padding: 15px 30px;
+  border-radius: 5px;
+  display: none;
+  z-index: 1001;
+}
