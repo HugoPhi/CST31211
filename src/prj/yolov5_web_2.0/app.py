@@ -14,7 +14,7 @@ app = Flask(__name__)
 app.config.update({
     'UPLOAD_FOLDER': 'static/uploads',
     'RESULT_FOLDER': 'static/results',
-    'MAX_CONTENT_LENGTH': 100 * 1024 * 1024,  # 100MB
+    'MAX_CONTENT_LENGTH': 100 * 1024 * 1024,
     'SQLALCHEMY_DATABASE_URI': 'sqlite:///detections.db',
     'SQLALCHEMY_TRACK_MODIFICATIONS': False
 })
@@ -33,11 +33,9 @@ with app.app_context():
 Path(app.config['UPLOAD_FOLDER']).mkdir(parents=True, exist_ok=True)
 Path(app.config['RESULT_FOLDER']).mkdir(parents=True, exist_ok=True)
 
-
 @app.route('/')
 def index():
     return render_template('index.html')
-
 
 @app.route('/export')
 def export_data():
@@ -70,8 +68,6 @@ def export_data():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
-# 数据库获取历史
 @app.route('/get_history')
 def get_history():
     records = DetectionRecord.query.order_by(DetectionRecord.upload_time.desc()).all()
@@ -81,9 +77,8 @@ def get_history():
         'detections': json.loads(r.detections),
         'thumbnail': r.thumbnail_path,
         'result_img': r.result_path,
-        'defect_types': json.loads(r.defect_types)  # 新增缺陷类型字段
+        'defect_types': json.loads(r.defect_types)
     } for r in records])
-
 
 @app.route('/detect', methods=['POST'])
 def detect():
@@ -116,14 +111,11 @@ def detect():
         ]
         subprocess.run(cmd, check=True)
 
-        # 获取结果文件
         result_img = next((result_dir).glob('*.jpg'))
         detections = parse_labels(result_dir / 'labels' / f'{result_img.stem}.txt')
 
-        # 提取缺陷类型
         defect_types = list({classMapping[d['class']] for d in detections})
 
-        # 保存到数据库
         record = DetectionRecord(
             id=file_id,
             filename=file.filename,
@@ -148,7 +140,6 @@ def detect():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
 def parse_labels(label_path):
     if not label_path.exists():
         return []
@@ -164,16 +155,13 @@ def parse_labels(label_path):
             })
     return detections
 
-
 @app.route('/uploads/<path:filename>')
 def serve_upload(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-
 @app.route('/results/<path:filename>')
 def serve_result(filename):
     return send_from_directory(app.config['RESULT_FOLDER'], filename)
-
 
 @app.route('/get_result/<file_id>')
 def get_result(file_id):
@@ -184,7 +172,6 @@ def get_result(file_id):
         'image_url': f'/results/{file_id}/{result_img.name}',
         'detections': parse_labels(result_dir / 'labels' / f'{result_img.stem}.txt')
     })
-
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8888, debug=True)
