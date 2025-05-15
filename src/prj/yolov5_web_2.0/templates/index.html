@@ -2,42 +2,48 @@
 <html>
 
 <head>
-  <title>工业缺陷检测系统</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <title>工业缺陷检测系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 
 <body>
-  <div class="container">
-    <!-- 上传区域 -->
-    <div class="upload-box">
-      <input type="file" id="fileInput" multiple hidden>
-      <label for="fileInput" class="upload-btn">
-        <span>+ 上传图片</span>
-        <p>支持JPG/PNG格式</p>
-      </label>
+    <div class="container">
+        <div class="header-bar">
+            <button class="export-btn" id="exportBtn">导出系统数据</button>
+        </div>
+
+        <div class="upload-box">
+            <input type="file" id="fileInput" multiple hidden>
+            <label for="fileInput" class="upload-btn">
+                <span>+ 上传图片</span>
+                <p>支持JPG/PNG格式</p>
+            </label>
+        </div>
+
+        <div class="search-box">
+            <div class="selected-tags" id="selectedTags"></div>
+            <input type="text" id="searchInput" placeholder="添加过滤标签（最多4个）" autocomplete="off">
+            <div class="tag-options" id="tagOptions"></div>
+        </div>
+
+        <div class="card-container" id="cardContainer"></div>
+
+        <div class="modal" id="resultModal">
+            <div class="modal-content">
+                <div class="modal-left">
+                    <img id="modalImage">
+                </div>
+                <div class="modal-right">
+                    <h3>检测结果 <span class="close-btn">×</span></h3>
+                    <div class="result-list" id="resultList"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="loading" id="loading">处理中...</div>
     </div>
 
-    <!-- 图片卡片容器 -->
-    <div class="card-container" id="cardContainer"></div>
-
-    <!-- 结果模态框 -->
-    <div class="modal" id="resultModal">
-      <div class="modal-content">
-        <div class="modal-left">
-          <img id="modalImage">
-        </div>
-        <div class="modal-right">
-          <h3>检测结果 <span class="close-btn">×</span></h3>
-          <div class="result-list" id="resultList"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 加载提示 -->
-    <div class="loading" id="loading">处理中...</div>
-  </div>
-
-  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 
 </html>
