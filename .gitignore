@@ -171,3 +171,6 @@ src/lab3/torch/log
 src/prj/yolov5_web_2.0/static/results
 src/prj/yolov5_web_2.0/static/uploads
 src/prj/yolov5_web_2.0/best.pt
+src/prj/yolov5/data
+src/prj/yolov5/clean_data
+src/prj/yolov5/clean_data_complete
